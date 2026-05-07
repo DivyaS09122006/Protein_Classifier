@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Protein Classifier Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --aac-color: #00d4ff;
+    --dpc-color: #ff6b9d;
+    --model-color: #a78bfa;
+    --eval-color: #34d399;
+    --output-color: #fbbf24;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --card-bg: #12121a;
+    --border: rgba(255,255,255,0.06);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    padding: 40px 20px;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(1.2rem, 3vw, 1.8rem);
+    text-align: center;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--aac-color), var(--dpc-color));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .subtitle {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-bottom: 40px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .diagram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .branches {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    width: 100%;
+  }
+
+  .branch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .branch-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    padding: 6px 16px;
+    border-radius: 100px;
+  }
+
+  .aac-label {
+    color: var(--aac-color);
+    background: rgba(0, 212, 255, 0.08);
+    border: 1px solid rgba(0, 212, 255, 0.2);
+  }
+
+  .dpc-label {
+    color: var(--dpc-color);
+    background: rgba(255, 107, 157, 0.08);
+    border: 1px solid rgba(255, 107, 157, 0.2);
+  }
+
+  .layer {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: default;
+  }
+
+  .layer:hover { transform: translateY(-2px); }
+
+  .layer-name {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+
+  .layer-shape {
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .layer-params {
+    font-size: 0.68rem;
+    padding: 2px 8px;
+    border-radius: 100px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .aac .layer { border-color: rgba(0, 212, 255, 0.15); }
+  .aac .layer:hover { box-shadow: 0 4px 20px rgba(0, 212, 255, 0.1); }
+  .aac .layer-name { color: var(--aac-color); }
+  .aac .layer-params { background: rgba(0, 212, 255, 0.08); color: var(--aac-color); }
+
+  .dpc .layer { border-color: rgba(255, 107, 157, 0.15); }
+  .dpc .layer:hover { box-shadow: 0 4px 20px rgba(255, 107, 157, 0.1); }
+  .dpc .layer-name { color: var(--dpc-color); }
+  .dpc .layer-params { background: rgba(255, 107, 157, 0.08); color: var(--dpc-color); }
+
+  .arrow {
+    width: 2px;
+    height: 20px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  .arrow::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 14px;
+    border-radius: 1px;
+  }
+
+  .arrow::after {
+    content: '▼';
+    position: absolute;
+    bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    font-size: 8px;
+    line-height: 1;
+  }
+
+  .aac .arrow::before { background: var(--aac-color); opacity: 0.4; }
+  .aac .arrow::after { color: var(--aac-color); opacity: 0.6; }
+  .dpc .arrow::before { background: var(--dpc-color); opacity: 0.4; }
+  .dpc .arrow::after { color: var(--dpc-color); opacity: 0.6; }
+
+  .converge {
+    width: 100%;
+    height: 40px;
+    position: relative;
+    margin: 4px 0;
+  }
+
+  .converge svg { width: 100%; height: 100%; }
+
+  .full-width-section {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .model-block {
+    width: 60%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .model-block .layer { border-color: rgba(167, 139, 250, 0.2); background: rgba(167, 139, 250, 0.04); }
+  .model-block .layer:hover { box-shadow: 0 4px 20px rgba(167, 139, 250, 0.12); }
+  .model-block .layer-name { color: var(--model-color); }
+  .model-block .layer-params { background: rgba(167, 139, 250, 0.08); color: var(--model-color); }
+
+  .eval-block {
+    width: 60%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .eval-block .layer { border-color: rgba(52, 211, 153, 0.15); }
+  .eval-block .layer:hover { box-shadow: 0 4px 20px rgba(52, 211, 153, 0.1); }
+  .eval-block .layer-name { color: var(--eval-color); }
+  .eval-block .layer-params { background: rgba(52, 211, 153, 0.08); color: var(--eval-color); }
+
+  .output-layer { width: 60%; }
+  .output-layer .layer {
+    border-color: rgba(251, 191, 36, 0.2);
+    animation: pulse 2.5s ease-in-out infinite;
+  }
+  .output-layer .layer-name { color: var(--output-color); }
+  .output-layer .layer-params { background: rgba(251, 191, 36, 0.08); color: var(--output-color); }
+
+  .mini-arrow {
+    width: 2px;
+    height: 20px;
+    margin: 0 auto;
+    position: relative;
+  }
+  .mini-arrow::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 2px; height: 14px;
+    border-radius: 1px;
+  }
+  .mini-arrow::after {
+    content: '▼';
+    position: absolute;
+    bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    font-size: 8px; line-height: 1;
+  }
+  .mini-arrow.model::before { background: rgba(167,139,250,0.4); }
+  .mini-arrow.model::after { color: rgba(167,139,250,0.6); }
+  .mini-arrow.eval::before { background: rgba(52,211,153,0.4); }
+  .mini-arrow.eval::after { color: rgba(52,211,153,0.6); }
+  .mini-arrow.out::before { background: rgba(251,191,36,0.4); }
+  .mini-arrow.out::after { color: rgba(251,191,36,0.6); }
+
+  .result-box {
+    margin-top: 16px;
+    text-align: center;
+    padding: 12px 32px;
+    border-radius: 10px;
+    border: 1px solid rgba(251,191,36,0.2);
+    background: rgba(251,191,36,0.04);
+  }
+
+  .result-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+  }
+
+  .result-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--output-color);
+    font-weight: 700;
+  }
+
+  .stats {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-top: 40px;
+    padding: 24px;
+    border-top: 1px solid var(--border);
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .stat { text-align: center; }
+
+  .stat-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .stat-label {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 4px;
+    font-family: 'Space Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .legend {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 20px;
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(251,191,36,0.2); }
+    50% { box-shadow: 0 0 0 8px rgba(251,191,36,0); }
+  }
+
+  .branch { animation: fadeSlideIn 0.5s ease forwards; }
+  .aac { animation-delay: 0.1s; }
+  .dpc { animation-delay: 0.2s; }
+  .converge { animation: fadeSlideIn 0.5s ease 0.3s forwards; opacity: 0; }
+  .full-width-section { animation: fadeSlideIn 0.5s ease 0.4s forwards; opacity: 0; }
+  .stats { animation: fadeSlideIn 0.5s ease 0.5s forwards; opacity: 0; }
+</style>
+</head>
+<body>
+
+<h1>Protein Classifier — ML Pipeline</h1>
+<p class="subtitle">Enzyme vs Non-Enzyme · UniProt Swiss-Prot · 1782 Human Proteins</p>
+
+<div class="diagram">
+
+  <!-- Two feature branches -->
+  <div class="branches">
+
+    <!-- AAC Branch -->
+    <div class="branch aac">
+      <div class="branch-label aac-label">🔵 AAC Features</div>
+
+      <div class="layer">
+        <span class="layer-name">FASTA Input</span>
+        <span class="layer-shape">891 + 891</span>
+        <span class="layer-params">sequences</span>
+      </div>
+      <div class="arrow aac"></div>
+
+      <div class="layer">
+        <span class="layer-name">iFeature</span>
+        <span class="layer-shape">AAC</span>
+        <span class="layer-params">extraction</span>
+      </div>
+      <div class="arrow aac"></div>
+
+      <div class="layer">
+        <span class="layer-name">Feature Matrix</span>
+        <span class="layer-shape">(1782, 20)</span>
+        <span class="layer-params">20 features</span>
+      </div>
+      <div class="arrow aac"></div>
+
+      <div class="layer">
+        <span class="layer-name">StandardScaler</span>
+        <span class="layer-shape">mean=0, std=1</span>
+        <span class="layer-params">normalise</span>
+      </div>
+      <div class="arrow aac"></div>
+
+      <div class="layer">
+        <span class="layer-name">Train / Test Split</span>
+        <span class="layer-shape">80% / 20%</span>
+        <span class="layer-params">stratified</span>
+      </div>
+    </div>
+
+    <!-- DPC Branch -->
+    <div class="branch dpc">
+      <div class="branch-label dpc-label">🩷 DPC Features</div>
+
+      <div class="layer">
+        <span class="layer-name">FASTA Input</span>
+        <span class="layer-shape">891 + 891</span>
+        <span class="layer-params">sequences</span>
+      </div>
+      <div class="arrow dpc"></div>
+
+      <div class="layer">
+        <span class="layer-name">iFeature</span>
+        <span class="layer-shape">DPC</span>
+        <span class="layer-params">extraction</span>
+      </div>
+      <div class="arrow dpc"></div>
+
+      <div class="layer">
+        <span class="layer-name">Feature Matrix</span>
+        <span class="layer-shape">(1782, 400)</span>
+        <span class="layer-params">400 features</span>
+      </div>
+      <div class="arrow dpc"></div>
+
+      <div class="layer">
+        <span class="layer-name">StandardScaler</span>
+        <span class="layer-shape">mean=0, std=1</span>
+        <span class="layer-params">normalise</span>
+      </div>
+      <div class="arrow dpc"></div>
+
+      <div class="layer">
+        <span class="layer-name">Train / Test Split</span>
+        <span class="layer-shape">80% / 20%</span>
+        <span class="layer-params">stratified</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Converging lines -->
+  <div class="converge">
+    <svg viewBox="0 0 900 40" preserveAspectRatio="none">
+      <path d="M 225 0 Q 450 40 450 40" stroke="rgba(167,139,250,0.3)" stroke-width="1.5" fill="none"/>
+      <path d="M 675 0 Q 450 40 450 40" stroke="rgba(167,139,250,0.3)" stroke-width="1.5" fill="none"/>
+      <circle cx="450" cy="40" r="3" fill="rgba(167,139,250,0.6)"/>
+    </svg>
+  </div>
+
+  <!-- Models + Evaluation -->
+  <div class="full-width-section">
+
+    <!-- Three models -->
+    <div class="model-block">
+      <div class="layer">
+        <span class="layer-name">Logistic Regression</span>
+        <span class="layer-shape">linear boundary</span>
+        <span class="layer-params">max_iter=1000</span>
+      </div>
+      <div class="mini-arrow model"></div>
+      <div class="layer">
+        <span class="layer-name">SVM</span>
+        <span class="layer-shape">curved boundary</span>
+        <span class="layer-params">kernel=rbf</span>
+      </div>
+      <div class="mini-arrow model"></div>
+      <div class="layer">
+        <span class="layer-name">Random Forest</span>
+        <span class="layer-shape">ensemble</span>
+        <span class="layer-params">n=100 trees</span>
+      </div>
+    </div>
+
+    <div class="mini-arrow eval"></div>
+
+    <!-- Evaluation -->
+    <div class="eval-block">
+      <div class="layer">
+        <span class="layer-name">Accuracy</span>
+        <span class="layer-shape">best: 78.7%</span>
+        <span class="layer-params">RF on DPC</span>
+      </div>
+      <div class="mini-arrow eval"></div>
+      <div class="layer">
+        <span class="layer-name">AUC-ROC</span>
+        <span class="layer-shape">best: 0.853</span>
+        <span class="layer-params">SVM on DPC</span>
+      </div>
+      <div class="mini-arrow eval"></div>
+      <div class="layer">
+        <span class="layer-name">Feature Importance</span>
+        <span class="layer-shape">S, V, I, L, W</span>
+        <span class="layer-params">RF on AAC</span>
+      </div>
+    </div>
+
+    <div class="mini-arrow out"></div>
+
+    <!-- Output -->
+    <div class="output-layer">
+      <div class="layer">
+        <span class="layer-name">Prediction</span>
+        <span class="layer-shape">(1,)</span>
+        <span class="layer-params">binary</span>
+      </div>
+    </div>
+
+    <div class="result-box" style="margin-top:16px;">
+      <div class="result-label">Output</div>
+      <div class="result-value">Enzyme (1) or Non-Enzyme (0)</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="stats">
+  <div class="stat">
+    <div class="stat-value">1782</div>
+    <div class="stat-label">Proteins</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">78.7%</div>
+    <div class="stat-label">Best Accuracy</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">0.853</div>
+    <div class="stat-label">Best AUC</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">3</div>
+    <div class="stat-label">Models</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">UniProt</div>
+    <div class="stat-label">Dataset</div>
+  </div>
+</div>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--aac-color)"></div>AAC Features</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--dpc-color)"></div>DPC Features</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--model-color)"></div>Models</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--eval-color)"></div>Evaluation</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--output-color)"></div>Output</div>
+</div>
+
+</body>
+</html>
